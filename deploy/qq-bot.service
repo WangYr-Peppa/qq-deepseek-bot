@@ -1,0 +1,21 @@
+[Unit]
+Description=QQ bot backed by the DeepSeek API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace YOUR_USER and, if you installed elsewhere, /opt/hub.
+User=YOUR_USER
+WorkingDirectory=/opt/hub
+EnvironmentFile=/opt/hub/.env
+ExecStart=/opt/hub/.venv/bin/python /opt/hub/bot.py
+Restart=always
+RestartSec=5
+# A bot with 10 turns of context fits comfortably in 200-300 MB.
+MemoryMax=400M
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

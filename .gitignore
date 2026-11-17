@@ -1,0 +1,21 @@
+# secrets
+.env
+*.env
+!.env.example
+
+# runtime data
+*.db
+*.db-shm
+*.db-wal
+exports/
+backups/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# logs
+*.log
+*.log.*

@@ -1,0 +1,4 @@
+# Keep the repo LF so the same tree works on a Linux server.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
