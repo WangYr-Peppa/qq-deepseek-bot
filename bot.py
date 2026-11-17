@@ -1050,6 +1050,11 @@ async def handle_command(text: str, uid: str, key: str) -> str | None:
     return await fn(uid, key, text[len(name):].strip())
 
 
+def _is_id_probe(text: str | None) -> bool:
+    """`/id` must reach the bot before BOT_OWNER_IDS is filled in, or nobody can bootstrap."""
+    return (text or "").strip().lower().startswith("/id")
+
+
 async def answer(key: str, text: str, images: list | None = None) -> list:
     """Build the prompt from memory, call the model, then store the exchange."""
     purge_expired()
@@ -1261,14 +1266,14 @@ class HubClient(botpy.Client):
         if not member:
             log.info("group message without member_openid, dropping")
             return
-        if PRIVATE_MODE and member not in OWNER_IDS:
+        if PRIVATE_MODE and member not in OWNER_IDS and not _is_id_probe(message.content):
             log.info("blocked non-owner group member %s", member)
             return
         await self._dispatch(message, member, f"g:{message.group_openid}:{member}")
 
     async def on_c2c_message_create(self, message: C2CMessage):
         uid = message.author.user_openid
-        if PRIVATE_MODE and uid not in OWNER_IDS:
+        if PRIVATE_MODE and uid not in OWNER_IDS and not _is_id_probe(message.content):
             log.info("blocked non-owner c2c user %s", uid)
             return
         await self._dispatch(message, uid, f"c:{uid}")

@@ -78,10 +78,13 @@ deploy/qq-bot.service  systemd unit 模板
 
 ## 三、部署
 
+> 不想手动敲这些命令？把文末「附录：让 AI 替你部署」里的提示词整段复制给 AI 编程助手，
+> 它会按同样的步骤执行，遇到密钥会停下来问你。
+
 ```bash
 # 1. 代码
 sudo mkdir -p /opt/hub && sudo chown "$USER" /opt/hub
-git clone https://github.com/<you>/qq-deepseek-bot.git /opt/hub
+git clone https://github.com/WangYr-Peppa/qq-deepseek-bot.git /opt/hub
 cd /opt/hub
 
 # 2. 依赖
@@ -212,6 +215,63 @@ journalctl -u qq-bot -f          # 看日志
 - 内容会发送给 DeepSeek API 用于生成回复，这与其他任何调用 API 的客户端一样。
 - 放进别人的群之前，**先告知群成员**机器人在记录消息；不同地区对聊天记录留存的要求不同。
 - 遵守 [QQ 开放平台开发者规范](https://q.qq.com/wiki/)：不要做主动群发、营销推送、绕过内容审核。
+
+## 附录：让 AI 替你部署
+
+适用 Claude Code、OpenCode、Cursor、Codex 这类能在这台服务器上执行 shell 的助手。
+如果你的 AI 连不上服务器，它也照样有用——提示词里已经写明让它只输出命令清单，你自己贴。
+
+把下面整段复制过去，**先把第 1 行的仓库地址和"哪台机器"说清楚**：
+
+```text
+我要在这台机器上部署这个 QQ 机器人：https://github.com/WangYr-Peppa/qq-deepseek-bot
+如果你没有这台机器的 shell 权限，不要假装执行，把完整命令清单给我，我自己贴。
+
+部署完成的效果：我在 QQ 群里 @ 机器人，它能回答我。
+
+硬性规则：
+1. 每一步先说要做什么、为什么，再执行；涉及删除、覆盖、重启的操作先问我确认。
+2. 密钥只能由我提供，不许编造、不许猜、不许写进任何被 git 管理的文件。
+   缺 QQ_APPID / QQ_APP_SECRET / DEEPSEEK_API_KEY 时停下来问我，我贴给你。
+3. 不要修改仓库里的代码；临时脚本放 /tmp，结束后删掉。
+4. 哪一步失败就停下，把完整报错贴给我，不要自己绕过（例如偷偷去掉 systemd 的 MemoryMax）。
+5. 不要开放任何入站端口，也不要在输出里回显完整密钥（打印时打码）。
+
+按这个顺序做：
+A. 体检：python3 --version（必须 ≥3.10）、git --version、df -h /opt、sudo -n true（确认免密 sudo）、
+   curl -sS -o /dev/null -w '%{http_code}' https://api.deepseek.com，
+   以及 curl -sS -o /dev/null -w '%{http_code}' https://api.bot.qq.com（确认出网）。任一不满足就报告并停止。
+B. 代码：mkdir -p /opt/hub 并确保当前用户拥有它；/opt/hub 非空时先问我能不能清空。
+   git clone https://github.com/WangYr-Peppa/qq-deepseek-bot.git /opt/hub
+C. 依赖：python3 -m venv /opt/hub/.venv && /opt/hub/.venv/bin/pip install -q -r /opt/hub/requirements.txt
+D. 配置：cp /opt/hub/.env.example /opt/hub/.env && chmod 600 /opt/hub/.env
+   逐个问我 QQ_APPID、QQ_APP_SECRET、DEEPSEEK_API_KEY。如果我还没有 AppID/AppSecret，
+   先告诉我去 https://q.qq.com 创建机器人、在"开发设置"里取值，取完再继续。
+   BOT_OWNER_IDS 先留空，部署完再用 /id 拿 openid 填。
+E. 人设与数据目录：cp /opt/hub/prompt.example.md /opt/hub/prompt.md && mkdir -p /opt/hub/exports
+F. 手动试跑一次，确认同时连得上 QQ 和 DeepSeek：
+   cd /opt/hub && set -a && . ./.env && set +a && timeout 25 .venv/bin/python bot.py
+   日志里出现"启动成功"和"心跳维持启动"就算通过；退出码 124（被 timeout 杀掉）是正常的。
+   这一步报错就先修，不要继续装服务。
+G. 装服务：cp /opt/hub/deploy/qq-bot.service /etc/systemd/system/ &&
+   sed -i "s/YOUR_USER/$USER/" /etc/systemd/system/qq-bot.service &&
+   systemctl daemon-reload && systemctl enable --now qq-bot
+H. 验收：systemctl is-active qq-bot 返回 active；journalctl -u qq-bot -n 30 里能看到"启动成功"，
+   且没有 Traceback / ERROR。然后把这句话原样告诉我：
+   "去群里 @ 我一句，再私聊我发 /id（白名单模式下这个指令对所有人开放），
+    把返回的 openid 填进 /opt/hub/.env 的 BOT_OWNER_IDS，然后 systemctl restart qq-bot，
+    否则机器人会谁都不理。"
+I. 收尾：删掉 /tmp 下的临时文件；把 /opt/hub/.env 里的配置项列给我看，密钥位置打码。
+
+最后给我一份 5 行以内的总结：装在哪、服务名、日志怎么看、下次怎么更新、还有什么需要我人工做。
+```
+
+两个提醒：
+
+- **它跑完不等于能用**。最后一步的"@ 一句 + 发 `/id` + 填 `BOT_OWNER_IDS`"必须你自己做，
+  那是唯一没法自动化的环节。
+- 别让 AI 顺手帮你「优化」代码或改成 Docker 部署——它改的东西你看不见，出问题也无从对账。
+  真要改，让它先给 diff。
 
 ## License
 
